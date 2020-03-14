@@ -1,0 +1,31 @@
+{
+  "name": "ch-logzy",
+  "version": "0.0.1",
+  "description": "clickhouse logs viewer",
+  "main": "public/index.js",
+  "scripts": {
+    "start": "parcel public/index.html",
+    "server": "parcel serve public/index.html",
+    "build": "parcel build public/index.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pechorin/ch-logzy.git"
+  },
+  "author": "andrey pechorin",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pechorin/ch-logzy/issues"
+  },
+  "homepage": "https://github.com/pechorin/ch-logzy#readme",
+  "devDependencies": {
+    "parcel-bundler": "^1.12.4",
+    "sass": "^1.26.3"
+  },
+  "dependencies": {
+    "vue": "^2.6.11"
+  },
+  "alias": {
+    "vue" : "./node_modules/vue/dist/vue.common.js"
+  }
+}
