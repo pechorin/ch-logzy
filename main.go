@@ -17,9 +17,16 @@ type App struct {
 	AssetsDir     string
 	AssetsBox     *packr.Box
 	ClickhouseUri string // move to engine abstraction?
+	Clickhouse    interface{}
 	IndexTemplate *template.Template
 
 	Debug bool
+}
+
+func (app *App) Log(message string) {
+	if app.Debug {
+		fmt.Println(message)
+	}
 }
 
 type WebInitData struct {
@@ -43,9 +50,9 @@ func New() *App {
 	flag.BoolVar(&app.Debug, "debug", true, "debug output")
 	flag.Parse()
 
-	if app.Debug {
-		fmt.Printf("Initial config -> %v", app)
-	}
+	app.Clickhouse = NewClickhouse()
+
+	app.Log(fmt.Sprintf("initial config -> %v", app))
 
 	return app
 }
@@ -95,7 +102,6 @@ func (app *App) handleIndex(c *gin.Context) {
 	init.InitData["debug"] = true
 	init.InitData["version"] = "0.1"
 
-	// rendered.initData =
 	marshalled, err := json.Marshal(init.InitData)
 	if err != nil {
 		app.renderError(c, err)
