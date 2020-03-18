@@ -9,23 +9,23 @@ import (
 	"time"
 )
 
-func NewClickhouse() *sql.DB {
+func NewClickhouse() (*sql.DB, error) {
 	// fmt.Println(c)
 	conn, err := sql.Open("clickhouse", "http://localhost:8123/default")
 
 	if err != nil {
-		log.Fatal(fmt.Sprintf("can't connect to clickhouse %v", err))
+		return nil, fmt.Errorf("can't connect to clickhouse %v", err)
 	}
 
 	if err := conn.Ping(); err != nil {
-		log.Fatal(fmt.Sprintf("can't ping clickhouse: %v", err))
+		return nil, fmt.Errorf("can't ping clickhouse: %v", err)
 	}
 
-	return conn
+	return conn, nil
 }
 
-func CreateTestLogsDatabase(conn *sql.DB) {
-	_, err := conn.Exec(`
+func CreateTestLogsDatabase(conn *sql.DB) error {
+	if _, err := conn.Exec(`
 		CREATE TABLE IF NOT EXISTS ch_logzy_logs_test (
 			time DateTime
 			date Date
@@ -33,20 +33,20 @@ func CreateTestLogsDatabase(conn *sql.DB) {
 			Level String
 			log String
 		) engine = Memory
-	`)
-
-	if err != nil {
-		log.Fatal(fmt.Sprintf("can't create test table: %v", err))
+	`); err != nil {
+		return fmt.Errorf("can't create test table: %v", err)
 	}
+
+	return nil
 }
 
-func ReadTestLatest(conn *sql.DB) {
+func ReadTestLatest(conn *sql.DB) error {
 	rows, err := conn.Query(`
 		SELECT * FROM ch_logzy_logs_test LIMIT %v
 	`, 10)
 
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	for rows.Next() {
@@ -59,48 +59,11 @@ func ReadTestLatest(conn *sql.DB) {
 		)
 
 		if err := rows.Scan(&logTime, &logDate, &category, &level, &logText); err != nil {
-			log.Fatal(fmt.Sprintf("can't scan row: %v", err))
+			return fmt.Errorf("can't scan row: %v", err.Error())
 		}
 
 		log.Printf("log: %v %v %v %v %v", logTime, logDate, category, level, logText)
 	}
-}
 
-func InsertTestLog(conn *sql.DB, insertMap map[string]interface{}) {
-	tx, err := conn.Begin()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	stm, err := tx.Prepare(`
-		INSERT INTO ch_logzy_logs_test (category, level, log) VALUES (?, ?, ?)
-	`)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if _, err := stm.Exec(
-		insertMap["category"],
-		insertMap["level"],
-		insertMap["log"],
-	); err != nil {
-		log.Fatal(err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func RunTestInsertionCycle(conn *sql.DB) {
-	for i := 0; i < 100; i++ {
-		el := make(map[string]interface{})
-		el["category"] = "default"
-		el["level"] = "info"
-		el["log"] = "test log message " + string(i)
-
-		InsertTestLog(conn, el)
-	}
+	return nil
 }

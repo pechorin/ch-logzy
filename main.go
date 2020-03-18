@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"text/template"
 
 	"github.com/gin-gonic/gin"
@@ -50,7 +51,12 @@ func New() *App {
 	flag.BoolVar(&app.Debug, "debug", true, "debug output")
 	flag.Parse()
 
-	app.Clickhouse = NewClickhouse()
+	conn, err := NewClickhouse()
+	if err != nil {
+		log.Fatalf("can't connect to clickhouse: %v", err.Error())
+	}
+
+	app.Clickhouse = conn
 
 	app.Log(fmt.Sprintf("initial config -> %v", app))
 
