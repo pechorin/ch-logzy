@@ -12,6 +12,10 @@ import (
 var tableName = "ch_logzy_logs_test"
 
 func TestClickhouseBasicConnection(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+
 	conn, err := NewClickhouse()
 
 	if err != nil {
@@ -22,11 +26,11 @@ func TestClickhouseBasicConnection(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := populate(conn); err != nil {
+	if err := populateDB(conn); err != nil {
 		t.Error(err)
 	}
 
-	if err := read(conn); err != nil {
+	if err := readDB(conn); err != nil {
 		t.Error(err)
 	}
 }
@@ -51,7 +55,7 @@ func createDB(conn *sql.DB) error {
 	return nil
 }
 
-func populate(conn *sql.DB) error {
+func populateDB(conn *sql.DB) error {
 	tx, err := conn.Begin()
 
 	if err != nil {
@@ -86,7 +90,7 @@ func populate(conn *sql.DB) error {
 	return nil
 }
 
-func read(conn *sql.DB) error {
+func readDB(conn *sql.DB) error {
 	limit := 10
 	iterated := 0
 
