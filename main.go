@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"text/template"
+	"time"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	packr "github.com/gobuffalo/packr/v2"
@@ -14,6 +16,13 @@ import (
 )
 
 var (
+	// time between fetching requests from clickhouse
+	// for client
+	FetchIntervals = [...]int16{0, 5, 10, 15, 30, 60, 120, 240}
+
+	// if null interval provided
+	NullFetchInterval int16 = int16(5)
+
 	WS = websocket.Upgrader{}
 )
 
@@ -25,14 +34,24 @@ type App struct {
 	ClickhouseUri string // move to engine abstraction?
 	Clickhouse    interface{}
 	IndexTemplate *template.Template
+	Debug         bool
 
-	Debug bool
+	Clients            []*ClientSession
+	ClientsIdSerial       int64
+	ClientsIdSerialMux   *sync.Mutex
 }
 
-func (app *App) Log(message string) {
-	if app.Debug {
-		fmt.Println(message)
-	}
+// ClientStream represents connected with websocket client
+// this struct hold all connected information, like current query, interval
+// last ping time, configs etc.
+type ClientSession struct {
+	Id								int64
+	Query							string
+	Active						bool
+	FetchInterval     int16
+
+	CreatedAt         time.Time
+	LastKeepaliveAt   time.Time
 }
 
 type WebInitData struct {
@@ -41,6 +60,26 @@ type WebInitData struct {
 
 type RenderedWebInitData struct {
 	InitData string
+}
+
+func (app *App) Log(message string) {
+	if app.Debug {
+		fmt.Println(message)
+	}
+}
+
+func (app *App) CreateClientSession() (cl *ClientSession, err error) {
+	// increase global id
+	app.ClientsIdSerialMux.Lock()
+	app.ClientsIdSerial += 1
+	cl.Id = app.ClientsIdSerial
+	app.ClientsIdSerialMux.Unlock()
+
+	// other defaults
+	cl.Active    = false
+	cl.CreatedAt = time.Now()
+
+	return
 }
 
 // New creates new application instance
@@ -66,6 +105,26 @@ func New() *App {
 	app.Log(fmt.Sprintf("initial config -> %v", app))
 
 	return app
+}
+
+// TODO: empty request backpressure detection required!
+//       1) if N empty loops reached then sleep for
+//          N * (iterations * ratio)
+//   or  2) track empty request if count, and if more then N
+//          then skip next X ticks
+func (cs *ClientSession) Start(resultsCh chan struct{}) (err error) {
+	timer := time.Tick((time.Duration)(NullFetchInterval) * time.Second)
+
+	go func() {
+		for {
+			select {
+			case <-timer:
+				fmt.Println("ClientSession tick tick")
+			}
+		}
+	}()
+
+	return nil
 }
 
 func main() {
@@ -106,11 +165,22 @@ func (app *App) RenderIndexTemplate() *template.Template {
 }
 
 func (app *App) websocketController(c *gin.Context) {
-	wsConn, err := WS.Upgrade(c.Writer, c.Req, nil)
-	if err != nil {
-		app.renderError(c, err)
-	}
+	wsConn, err := WS.Upgrade(c.Writer, c.Request, nil)
+	if err != nil { app.renderError(c, err); return }
 	defer wsConn.Close()
+
+	client, err := app.CreateClientSession()
+	if err != nil { app.renderError(c, err); return }
+
+	fmt.Printf("client created -> %v", client)
+
+	resultsCh := make(chan struct{})
+
+	// start client fetching process immediatly
+	if err := client.Start(resultsCh); err != nil {
+		app.renderError(c, err)
+		return
+	}
 
 	msg := new(bytes.Buffer)
 
