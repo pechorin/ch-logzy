@@ -7,10 +7,58 @@ import (
 	"time"
 )
 
-var SendHeartbeatSeconds time.Duration = 1
-var SendClientHeartbeatSeconds time.Duration = 5
+var (
+	// time between fetching requests from clickhouse
+	// for client
+	FetchIntervals = [...]int16{0, 5, 10, 15, 30, 60, 120, 240}
 
-var SendMutex *sync.Mutex = &sync.Mutex{}
+	// if null interval provided
+	NullFetchInterval int16 = int16(5)
+
+	SendHeartbeatSeconds time.Duration       = 1
+	SendClientHeartbeatSeconds time.Duration = 5
+
+	SendMutex *sync.Mutex = &sync.Mutex{}
+)
+
+// ClientStream represents connected with websocket client
+// this struct hold all connected information, like current query, interval
+// last ping time, configs etc.
+type ClientSession struct {
+	Id								int64
+	Query							string
+	Active						bool
+	FetchInterval     int16
+
+	CreatedAt         time.Time
+	LastKeepaliveAt   time.Time
+}
+
+// TODO: if N empty loops reached then sleep for
+//       N * (iterations * ratio)
+func (cs *ClientSession) Start() (clientCh chan string, err error) {
+	timer := time.Tick((time.Duration)(NullFetchInterval) * time.Second)
+
+	limit := 10
+	cur   := 0
+
+	go func() {
+		for {
+			if cur == limit {
+				fmt.Println("limit reached")
+				break
+			}
+
+			select {
+			case <-timer:
+				cur += 1
+				fmt.Println("ClientSession Start tick")
+			}
+		}
+	}()
+
+	return
+}
 
 type PushServer struct {
 	UpdateMux      *sync.Mutex
@@ -19,42 +67,41 @@ type PushServer struct {
 	HeartCh         chan int
 	ClientsHeartCh  chan int
 
-	ItemsCnt        int64
-	Items        []*PushItem
-	PushedCouter    int64
-}
-
-type PushItem struct {
-	Id      int64
-	Query   string
+	Clients     []*ClientSession
+	ClientsCnt     int64
 }
 
 func NewPushServer() *PushServer {
 	s := &PushServer{}
 
 	s.UpdateMux      = new(sync.Mutex)
+	s.CntUpdateMux   = new(sync.Mutex)
 	s.HeartCh        = make(chan int, 1)
 	s.ClientsHeartCh = make(chan int, 1)
 
 	return s
 }
 
-func (s *PushServer) CreatePushItem() (*PushItem, error) {
-	item := &PushItem{}
-
+func (s *PushServer) CreateClient() (item *ClientSession, err error) {
+	// increase global id
 	s.CntUpdateMux.Lock()
-	s.ItemsCnt += 1
-	item.Id = s.ItemsCnt
+	s.ClientsCnt += 1
+	item.Id = s.ClientsCnt
 	s.CntUpdateMux.Unlock()
 
-	return item, nil
+	// other defaults
+	item.Active    = false
+	item.CreatedAt = time.Now()
+
+	return
 }
 
-func (s *PushServer) AddPushItem(item *PushItem) error {
-	newItems := append(s.Items, item)
+func (s *PushServer) ConnectClient(client *ClientSession) error {
+	client.Active = true
+	newColl := append(s.Clients, client)
 
 	s.UpdateMux.Lock()
-	s.Items = newItems
+	s.Clients = newColl
 	s.UpdateMux.Unlock()
 
 	return nil
@@ -87,8 +134,8 @@ func (s *PushServer) RunSendServer() error {
 			break
 		}
 
-		cnt := len(s.Items)
-		fmt.Printf("[sender] checking count for send -> %v", cnt)
+		cnt := len(s.Clients)
+		fmt.Printf("[sender] clients count for send -> %v\n", cnt)
 	}
 
 	return nil
@@ -105,13 +152,13 @@ func (s *PushServer) RunClientsServer() error {
 
 		fmt.Println("[clients server] clients pool rework")
 
-		item, err := s.CreatePushItem()
+		item, err := s.CreateClient()
 		if err != nil {
 			return err
 		}
 
 		item.Query = "TestQuery"
-		s.AddPushItem(item)
+		s.ConnectClient(item)
 	}
 	return nil
 }
