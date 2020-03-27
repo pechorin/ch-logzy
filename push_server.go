@@ -34,8 +34,11 @@ type ClientSession struct {
 	LastKeepaliveAt   time.Time
 }
 
-// TODO: if N empty loops reached then sleep for
-//       N * (iterations * ratio)
+// TODO: empty request backpressure detection required!
+//       1) if N empty loops reached then sleep for
+//          N * (iterations * ratio)
+//   or  2) track empty request if count, and if more then N
+//          then skip next X ticks
 func (cs *ClientSession) Start() (clientCh chan string, err error) {
 	timer := time.Tick((time.Duration)(NullFetchInterval) * time.Second)
 

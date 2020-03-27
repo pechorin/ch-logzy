@@ -10,6 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	packr "github.com/gobuffalo/packr/v2"
 	"github.com/namsral/flag"
+	"github.com/gorilla/websocket"
+)
+
+var (
+	WS = websocket.Upgrader{}
 )
 
 // App represents the application with configuration state
@@ -72,9 +77,10 @@ func main() {
 	router.Static("/img", app.AssetsDir+"/img")
 	router.Static("/fonts", app.AssetsDir+"/fonts")
 
-	router.GET("/", app.handleIndex)
-	router.GET("/about", app.handleIndex)
-	router.GET("/favicon.ico", app.handleFavicon)
+	router.GET("/", app.indexController)
+	router.GET("/about", app.indexController)
+	router.GET("/favicon.ico", app.faviconController)
+	router.GET("/ws", app.websocketController)
 	router.Run(app.Port)
 }
 
@@ -99,7 +105,27 @@ func (app *App) RenderIndexTemplate() *template.Template {
 	return template
 }
 
-func (app *App) handleIndex(c *gin.Context) {
+func (app *App) websocketController(c *gin.Context) {
+	wsConn, err := WS.Upgrade(c.Writer, c.Req, nil)
+	if err != nil {
+		app.renderError(c, err)
+	}
+	defer wsConn.Close()
+
+	msg := new(bytes.Buffer)
+
+	for {
+		if err := wsConn.ReadJSON(&msg); err != nil {
+			log.Println("error -> %v", err.Error())
+			break
+		}
+
+		log.Println("rec -> %v", msg.String())
+		msg.Reset()
+	}
+}
+
+func (app *App) indexController(c *gin.Context) {
 	render := new(bytes.Buffer)
 
 	init := new(WebInitData)
@@ -126,7 +152,7 @@ func (app *App) handleIndex(c *gin.Context) {
 	c.Writer.WriteString(render.String())
 }
 
-func (app *App) handleFavicon(c *gin.Context) {
+func (app *App) faviconController(c *gin.Context) {
 	html, err := app.AssetsBox.FindString("favicon.ico")
 
 	if err != nil {
