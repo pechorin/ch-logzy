@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"text/template"
 	"time"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	packr "github.com/gobuffalo/packr/v2"
-	"github.com/namsral/flag"
 	"github.com/gorilla/websocket"
+	"github.com/namsral/flag"
 )
 
 var (
@@ -37,21 +37,21 @@ type App struct {
 	Debug         bool
 
 	Clients            []*ClientSession
-	ClientsIdSerial       int64
-	ClientsIdSerialMux   *sync.Mutex
+	ClientsIdSerial    int64
+	ClientsIdSerialMux *sync.Mutex
 }
 
 // ClientStream represents connected with websocket client
 // this struct hold all connected information, like current query, interval
 // last ping time, configs etc.
 type ClientSession struct {
-	Id								int64
-	Query							string
-	Active						bool
-	FetchInterval     int16
+	Id            int64
+	Query         string
+	Active        bool
+	FetchInterval int16
 
-	CreatedAt         time.Time
-	LastKeepaliveAt   time.Time
+	CreatedAt       time.Time
+	LastKeepaliveAt time.Time
 }
 
 type WebInitData struct {
@@ -76,7 +76,7 @@ func (app *App) CreateClientSession() (cl *ClientSession, err error) {
 	app.ClientsIdSerialMux.Unlock()
 
 	// other defaults
-	cl.Active    = false
+	cl.Active = false
 	cl.CreatedAt = time.Now()
 
 	return
@@ -166,11 +166,17 @@ func (app *App) RenderIndexTemplate() *template.Template {
 
 func (app *App) websocketController(c *gin.Context) {
 	wsConn, err := WS.Upgrade(c.Writer, c.Request, nil)
-	if err != nil { app.renderError(c, err); return }
+	if err != nil {
+		app.renderError(c, err)
+		return
+	}
 	defer wsConn.Close()
 
 	client, err := app.CreateClientSession()
-	if err != nil { app.renderError(c, err); return }
+	if err != nil {
+		app.renderError(c, err)
+		return
+	}
 
 	fmt.Printf("client created -> %v", client)
 
