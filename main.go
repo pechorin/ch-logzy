@@ -127,6 +127,9 @@ func (cs *ClientSession) Start(resultsCh chan struct{}) (err error) {
 	return nil
 }
 
+func (cs *ClientSession) Close() {
+}
+
 func main() {
 	app := New()
 	router := gin.Default()
@@ -191,13 +194,15 @@ func (app *App) websocketController(c *gin.Context) {
 	msg := new(bytes.Buffer)
 
 	for {
+		defer msg.Reset()
+
 		if err := wsConn.ReadJSON(&msg); err != nil {
+			client.Close()
 			log.Println("error -> %v", err.Error())
 			break
 		}
 
 		log.Println("rec -> %v", msg.String())
-		msg.Reset()
 	}
 }
 
