@@ -21,3 +21,6 @@ func NewClickhouse() (*sql.DB, error) {
 
 	return conn, nil
 }
+
+// func GetAvailableDatabases(conn *sql.DB) ([]string, error) {}
+// func RunQuery(conn *sql.DB, query Query) (interface{}, error) {}
