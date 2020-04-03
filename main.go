@@ -19,6 +19,9 @@ var (
 
 	// Websocket engine
 	WS = websocket.Upgrader{}
+
+	// Dev HMR Port
+	DevHMRPort = 54725
 )
 
 // App represents the application with configuration state
@@ -60,6 +63,8 @@ func (app *App) Log(message string) {
 }
 
 func (app *App) CreateClientSession() (cl *ClientSession, err error) {
+	cl = new(ClientSession)
+
 	// increase global id
 	app.ClientsIdSerialMux.Lock()
 	app.ClientsIdSerial += 1
@@ -70,7 +75,7 @@ func (app *App) CreateClientSession() (cl *ClientSession, err error) {
 	cl.Active = false
 	cl.CreatedAt = time.Now()
 
-	return
+	return cl, err
 }
 
 // New creates new application instance
@@ -81,6 +86,8 @@ func New() *App {
 	app.AssetsDir = "./ui/dist"
 	app.AssetsBox = packr.New("Assets", app.AssetsDir)
 	app.IndexTemplate = app.RenderIndexTemplate()
+	app.ClientsIdSerialMux = new(sync.Mutex)
+	app.Clients = make([]*ClientSession, 10)
 
 	flag.StringVar(&app.ClickhouseUri, "clickhouse_uri", "http://localhost:8123", "Clickhouse uri with scheme")
 	flag.BoolVar(&app.Debug, "debug", true, "debug output")
@@ -103,14 +110,36 @@ func New() *App {
 //          N * (iterations * ratio)
 //   or  2) track empty request if count, and if more then N
 //          then skip next X ticks
-func (cs *ClientSession) Start(resultsCh chan struct{}) (err error) {
+func (cs *ClientSession) Start(app *App, resultsCh chan struct{}) (err error) {
+	app.Clients = append(app.Clients, cs)
+
+	log.Printf("client created -> %v", cs)
+
 	timer := time.Tick((time.Duration)(FetchIntervals[0]) * time.Second)
 
 	go func() {
 		for {
 			select {
 			case <-timer:
-				fmt.Println("ClientSession tick tick")
+				log.Printf("ClientSession tick %v", cs.Id)
+			}
+		}
+	}()
+
+	return nil
+}
+
+// move to monitor log ?
+func (app *App) ClientSessionsMonitor() error {
+	timer := time.Tick(10 * time.Second)
+
+	go func() {
+		for {
+			select {
+			case <-timer:
+				cnt := len(app.Clients)
+				log.Printf("MONITOR: sessions count: %v", cnt)
+				log.Printf("MONITOR: app: %v", app)
 			}
 		}
 	}()
@@ -123,6 +152,9 @@ func (cs *ClientSession) Close() {
 
 func main() {
 	app := New()
+
+	go app.ClientSessionsMonitor()
+
 	router := gin.Default()
 
 	router.Static("/js", app.AssetsDir+"/js")

@@ -4,8 +4,10 @@
   "description": "clickhouse logs viewer",
   "main": "public/js/index.js",
   "scripts": {
-    "watch": "parcel watch public/index.html",
-    "build": "parcel build public/index.html"
+    "cleanup": "rm -rf .cache dist",
+    "watch": "npm run cleanup && parcel watch --no-hmr --no-cache public/index.html",
+    "build": "parcel build public/index.html",
+    "serve": "parcel serve --no-hmr public/index.html"
   },
   "repository": {
     "type": "git",

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"log"
 	"text/template"
 
@@ -53,7 +52,8 @@ func (app *App) websocketController(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("client created -> %v", client)
+	app.Clients = append(app.Clients, client)
+	log.Printf("client created -> %v", client)
 
 	resultsCh := make(chan struct{})
 
@@ -70,11 +70,11 @@ func (app *App) websocketController(c *gin.Context) {
 
 		if err := wsConn.ReadJSON(&msg); err != nil {
 			client.Close()
-			log.Println("error -> %v", err.Error())
+			log.Printf("error -> %v", err.Error())
 			break
 		}
 
-		log.Println("rec -> %v", msg.String())
+		log.Printf("rec -> %v", msg.String())
 	}
 }
 
