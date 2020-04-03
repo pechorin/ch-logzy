@@ -52,13 +52,10 @@ func (app *App) websocketController(c *gin.Context) {
 		return
 	}
 
-	app.Clients = append(app.Clients, client)
-	log.Printf("client created -> %v", client)
-
 	resultsCh := make(chan struct{})
 
 	// start client fetching process immediatly
-	if err := client.Start(resultsCh); err != nil {
+	if err := client.Start(app, resultsCh); err != nil {
 		app.renderError(c, err)
 		return
 	}

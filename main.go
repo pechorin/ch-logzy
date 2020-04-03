@@ -87,7 +87,7 @@ func New() *App {
 	app.AssetsBox = packr.New("Assets", app.AssetsDir)
 	app.IndexTemplate = app.RenderIndexTemplate()
 	app.ClientsIdSerialMux = new(sync.Mutex)
-	app.Clients = make([]*ClientSession, 10)
+	app.Clients = make([]*ClientSession, 0)
 
 	flag.StringVar(&app.ClickhouseUri, "clickhouse_uri", "http://localhost:8123", "Clickhouse uri with scheme")
 	flag.BoolVar(&app.Debug, "debug", true, "debug output")
@@ -95,12 +95,12 @@ func New() *App {
 
 	conn, err := NewClickhouse()
 	if err != nil {
-		log.Fatalf("can't connect to clickhouse: %v", err.Error())
+		log.Fatalf("can't connect to clickhouse: %s", err.Error())
 	}
 
 	app.Clickhouse = conn
 
-	app.Log(fmt.Sprintf("initial config -> %v", app))
+	app.Log(fmt.Sprintf("initial config -> %+v", app))
 
 	return app
 }
@@ -113,7 +113,7 @@ func New() *App {
 func (cs *ClientSession) Start(app *App, resultsCh chan struct{}) (err error) {
 	app.Clients = append(app.Clients, cs)
 
-	log.Printf("client created -> %v", cs)
+	log.Printf("client created -> %+v", cs)
 
 	timer := time.Tick((time.Duration)(FetchIntervals[0]) * time.Second)
 
@@ -121,7 +121,7 @@ func (cs *ClientSession) Start(app *App, resultsCh chan struct{}) (err error) {
 		for {
 			select {
 			case <-timer:
-				log.Printf("ClientSession tick %v", cs.Id)
+				log.Printf("ClientSession tick %d", cs.Id)
 			}
 		}
 	}()
@@ -137,9 +137,8 @@ func (app *App) ClientSessionsMonitor() error {
 		for {
 			select {
 			case <-timer:
-				cnt := len(app.Clients)
-				log.Printf("MONITOR: sessions count: %v", cnt)
-				log.Printf("MONITOR: app: %v", app)
+				log.Printf("MONITOR: sessions count: %d", len(app.Clients))
+				log.Printf("MONITOR: app: %+v", app)
 			}
 		}
 	}()
