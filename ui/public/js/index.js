@@ -6,9 +6,10 @@ function StartWebSocket() {
   var soc = new WebSocket(WebSocketUrl)
 
   soc.onopen = function(ev) {
-    console.log('started WS', ev)
-
-    soc.send(JSON.stringify({ init: true }))
+    soc.send(JSON.stringify({
+      action: 'init',
+      payload: { login: '', password: '', hostString: '' }
+    }))
   }
 
   soc.onerror = function(ev) {

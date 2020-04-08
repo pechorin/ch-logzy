@@ -1,7 +1,9 @@
 package main
 
 import (
+	_ "database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"log"
 	"sync"
 	"text/template"
@@ -27,12 +29,13 @@ var (
 // App represents the application with configuration state
 type App struct {
 	Port          string
+	Debug         bool
 	AssetsDir     string
 	AssetsBox     *packr.Box
-	ClickhouseUri string // move to engine abstraction?
-	Clickhouse    interface{}
 	IndexTemplate *template.Template
-	Debug         bool
+
+	Clickhouse    *sqlx.DB
+	ClickhouseUri string // move to engine abstraction?
 
 	Clients            []*ClientSession
 	ClientsIdSerial    int64
@@ -78,10 +81,21 @@ func (app *App) CreateClientSession() (cl *ClientSession, err error) {
 	return cl, err
 }
 
-// New creates new application instance
+// Create new application instance
 func New() *App {
 	app := new(App)
 
+	clk, err := NewClickhouse()
+
+	if err != nil {
+		log.Fatalf("can't connect to clickhouse: %s", err.Error())
+	}
+
+	if err := clk.Ping(); err != nil {
+		log.Fatalf("can't ping clickhouse: %s", err.Error())
+	}
+
+	app.Clickhouse = clk
 	app.Port = ":9091"
 	app.AssetsDir = "./ui/dist"
 	app.AssetsBox = packr.New("Assets", app.AssetsDir)
@@ -92,13 +106,6 @@ func New() *App {
 	flag.StringVar(&app.ClickhouseUri, "clickhouse_uri", "http://localhost:8123", "Clickhouse uri with scheme")
 	flag.BoolVar(&app.Debug, "debug", true, "debug output")
 	flag.Parse()
-
-	conn, err := NewClickhouse()
-	if err != nil {
-		log.Fatalf("can't connect to clickhouse: %s", err.Error())
-	}
-
-	app.Clickhouse = conn
 
 	app.Log(fmt.Sprintf("initial config -> %+v", app))
 
@@ -121,7 +128,13 @@ func (cs *ClientSession) Start(app *App, resultsCh chan struct{}) (err error) {
 		for {
 			select {
 			case <-timer:
-				log.Printf("ClientSession tick %d", cs.Id)
+				results, err := cs.RunQuery(app)
+				if err != nil {
+					log.Printf("Error while RunQuery: %s", err.Error())
+					continue
+				}
+
+				log.Printf("Fetched results count: %d", len(results))
 			}
 		}
 	}()
@@ -129,16 +142,20 @@ func (cs *ClientSession) Start(app *App, resultsCh chan struct{}) (err error) {
 	return nil
 }
 
+func (cs *ClientSession) RunQuery(app *App) (results []int64, err error) {
+	log.Printf("run ClientSession %d", cs.Id)
+	return results, nil
+}
+
 // move to monitor log ?
 func (app *App) ClientSessionsMonitor() error {
-	timer := time.Tick(10 * time.Second)
+	timer := time.Tick(30 * time.Second)
 
 	go func() {
 		for {
 			select {
 			case <-timer:
-				log.Printf("MONITOR: sessions count: %d", len(app.Clients))
-				log.Printf("MONITOR: app: %+v", app)
+				log.Printf("MONITOR - sessions: %d, fetching: %d", len(app.Clients), 0)
 			}
 		}
 	}()
@@ -151,6 +168,7 @@ func (cs *ClientSession) Close() {
 
 func main() {
 	app := New()
+	defer app.Clickhouse.Close()
 
 	go app.ClientSessionsMonitor()
 

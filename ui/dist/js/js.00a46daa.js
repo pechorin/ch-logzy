@@ -12098,9 +12098,13 @@ function StartWebSocket() {
   var soc = new WebSocket(WebSocketUrl);
 
   soc.onopen = function (ev) {
-    console.log('started WS', ev);
     soc.send(JSON.stringify({
-      init: true
+      action: 'init',
+      payload: {
+        login: '',
+        password: '',
+        hostString: ''
+      }
     }));
   };
 

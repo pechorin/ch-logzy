@@ -17,6 +17,15 @@ type RenderedWebInitData struct {
 	InitData string
 }
 
+type SocketAction struct {
+	Action  string            `json:"action"`
+	Payload map[string]string `json:"payload"`
+}
+
+type SocketInitResponse struct {
+	Tables []string `json:"tables"`
+}
+
 func (app *App) renderError(c *gin.Context, err error) {
 	c.String(500, err.Error())
 }
@@ -51,27 +60,63 @@ func (app *App) websocketController(c *gin.Context) {
 		app.renderError(c, err)
 		return
 	}
+	defer client.Close()
 
-	resultsCh := make(chan struct{})
+	// resultsCh := make(chan struct{})
 
 	// start client fetching process immediatly
-	if err := client.Start(app, resultsCh); err != nil {
-		app.renderError(c, err)
-		return
-	}
+	// if err := client.Start(app, resultsCh); err != nil {
+	// 	app.renderError(c, err)
+	// 	return
+	// }
 
-	msg := new(bytes.Buffer)
-
+	// TODO: errors here should panic and kill connection
 	for {
-		defer msg.Reset()
+		_, msg, err := wsConn.ReadMessage()
 
-		if err := wsConn.ReadJSON(&msg); err != nil {
-			client.Close()
-			log.Printf("error -> %v", err.Error())
+		if err != nil {
+			log.Printf("error -> %s", err.Error())
 			break
 		}
 
-		log.Printf("rec -> %v", msg.String())
+		act := new(SocketAction)
+		if err := json.Unmarshal(msg, &act); err != nil {
+			log.Printf("error -> %s", err.Error())
+			break
+		}
+
+		// log.Printf("SocketAction -> %+v", act)
+
+		switch action := act.Action; action {
+		case "init":
+			log.Printf("INIT CONNECTION %+v", act)
+
+			tables, err := AvailableTables(app.Clickhouse)
+			if err != nil {
+				log.Printf("error -> %s", err.Error())
+				break
+			}
+
+			resp := SocketInitResponse{Tables: tables}
+
+			// raw, err := json.Marshal(resp)
+			// if err != nil {
+			// 	log.Printf("error -> %s", err.Error())
+			// 	break
+			// }
+
+			if err := wsConn.WriteJSON(resp); err != nil {
+				log.Printf("error -> %s", err.Error())
+				break
+			}
+
+			// json.Marshal
+
+			// log.Printf("RAW -> %s", raw)
+
+		default:
+			log.Printf("Unknown SocketAction -> %+v", act)
+		}
 	}
 }
 

@@ -96,7 +96,6 @@ func readDB(conn *sql.DB) error {
 
 	query := fmt.Sprintf("SELECT * FROM ch_logzy_logs_test LIMIT %v", limit)
 	rows, err := conn.Query(query)
-
 	if err != nil {
 		return err
 	}
