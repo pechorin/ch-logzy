@@ -9,6 +9,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var (
+	InitAction     = "init"
+	RunQueryAction = "run_query"
+)
+
 type WebInitData struct {
 	InitData map[string]interface{}
 }
@@ -18,12 +23,13 @@ type RenderedWebInitData struct {
 }
 
 type SocketAction struct {
-	Action  string            `json:"action"`
-	Payload map[string]string `json:"payload"`
+	Action  string                 `json:"action"`
+	Payload map[string]interface{} `json:"payload"`
 }
 
-type SocketInitResponse struct {
-	Tables []string `json:"tables"`
+type SocketActionResponse struct {
+	Action  string                 `json:"action"`
+	Payload map[string]interface{} `json:"payload"`
 }
 
 func (app *App) renderError(c *gin.Context, err error) {
@@ -85,10 +91,8 @@ func (app *App) websocketController(c *gin.Context) {
 			break
 		}
 
-		// log.Printf("SocketAction -> %+v", act)
-
 		switch action := act.Action; action {
-		case "init":
+		case InitAction:
 			log.Printf("INIT CONNECTION %+v", act)
 
 			tables, err := AvailableTables(app.Clickhouse)
@@ -97,22 +101,17 @@ func (app *App) websocketController(c *gin.Context) {
 				break
 			}
 
-			resp := SocketInitResponse{Tables: tables}
-
-			// raw, err := json.Marshal(resp)
-			// if err != nil {
-			// 	log.Printf("error -> %s", err.Error())
-			// 	break
-			// }
+			resp := SocketActionResponse{Action: "init"}
+			resp.Payload = make(map[string]interface{})
+			resp.Payload["tables"] = tables
 
 			if err := wsConn.WriteJSON(resp); err != nil {
 				log.Printf("error -> %s", err.Error())
 				break
 			}
 
-			// json.Marshal
-
-			// log.Printf("RAW -> %s", raw)
+		case RunQueryAction:
+			log.Printf("RUN QUERY %+v", act)
 
 		default:
 			log.Printf("Unknown SocketAction -> %+v", act)
