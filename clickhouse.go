@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mailru/go-clickhouse"
+	"log"
 )
 
 // initialize Clickhouse db layer
@@ -19,7 +20,8 @@ func NewClickhouse() (*sqlx.DB, error) {
 	return conn, nil
 }
 
-func AvailableTables(conn *sqlx.DB) (tables []string, err error) {
+// Get available clickhouse tables
+func FetchClickhouseTables(conn *sqlx.DB) (tables []string, err error) {
 	if err := conn.Select(&tables, "SHOW TABLES"); err != nil {
 		return tables, err
 	}
@@ -27,4 +29,26 @@ func AvailableTables(conn *sqlx.DB) (tables []string, err error) {
 	return tables, err
 }
 
-// func RunQuery(conn *sql.DB, query Query) (interface{}, error) {}
+// Fetch clickhouse results
+func FetchClickhouse(conn *sqlx.DB, q ClientQuery) (result []map[string]interface{}, err error) {
+	query := fmt.Sprintf("SELECT * FROM %s", q.Table)
+
+	log.Printf("execquery -> %s", query)
+
+	rows, err := conn.Queryx(query)
+	if err != nil {
+		return result, err
+	}
+
+	for rows.Next() {
+		row := make(map[string]interface{})
+		err := rows.MapScan(row)
+		if err != nil {
+			return result, err
+		}
+
+		result = append(result, row)
+	}
+
+	return result, err
+}

@@ -1,8 +1,9 @@
 import Vue from 'vue';
 
-var INIT_ACTION      = 'init'
-var RUN_QUERY_ACTION = 'run_query'
-var WEBSOCKET_URL    = 'ws://localhost:9091/ws'
+var INIT_ACTION         = 'init'
+var RUN_QUERY_ACTION    = 'run_query'
+var QUERY_RESULT_ACTION = 'query_result'
+var WEBSOCKET_URL       = 'ws://localhost:9091/ws'
 
 function StartWebSocket() {
   var soc = new WebSocket(WEBSOCKET_URL)
@@ -33,10 +34,12 @@ function StartWebSocket() {
       if (data.tables && data.tables.length > 0) {
         console.log('will fetch first table ->', data.tables[0])
 
+        var query_id = Math.floor(Math.random() * Math.floor(100000))
+
         soc.send(JSON.stringify({
           action: RUN_QUERY_ACTION,
           payload: { queries: [
-            { query: "", fetch_interval: 30 }
+            { id: query_id, query: "SELECT * FROM users", fetch_interval: 30, table: data.tables[0] }
           ] }
         }))
       }

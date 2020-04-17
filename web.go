@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	InitAction     = "init"
-	RunQueryAction = "run_query"
+	InitAction        = "init"
+	RunQueryAction    = "run_query"
+	QueryResultAction = "query_result"
 )
 
 type WebInitData struct {
@@ -34,6 +35,11 @@ type SocketActionResponse struct {
 	Payload map[string]interface{} `json:"payload"`
 }
 
+type SocketQueryResultsResponse struct {
+	Action  string       `json:"action"`
+	Results QueryResults `json:"results"`
+}
+
 // ClientStream represents connected with websocket client
 // this struct hold all connected information, like current query, interval
 // last ping time, configs etc.
@@ -50,13 +56,18 @@ type ClientSession struct {
 }
 
 type ClientQuery struct {
+	Id            int32
 	Query         string
+	Table         string
 	FetchInterval int16 `mapstructure:"fetch_interval"`
 }
 
 type ClientQueries struct {
 	Queries []ClientQuery
 }
+
+type QueryResults []map[string]interface{}
+type QueryResultsCh chan QueryResults
 
 func (app *App) renderError(c *gin.Context, err error) {
 	c.String(500, err.Error())
@@ -94,6 +105,39 @@ func (app *App) websocketController(c *gin.Context) {
 	}
 	defer client.Close()
 
+	// handle results
+	resultsCh := make(QueryResultsCh)
+	defer close(resultsCh)
+
+	go func() {
+		for {
+			select {
+			case results, ok := <-resultsCh:
+				if !ok {
+					break
+				}
+
+				socketRes := new(SocketQueryResultsResponse)
+				socketRes.Action = QueryResultAction
+				socketRes.Results = results
+
+				jsonRes, err := json.Marshal(socketRes)
+				if err != nil {
+					log.Printf("Invalid marshall results %s", err.Error())
+					continue
+				}
+
+				if err := wsConn.WriteJSON(socketRes); err != nil {
+					log.Printf("Socket write error %s", err.Error())
+					continue
+				}
+
+				log.Printf("json results -> %s", jsonRes)
+			}
+		}
+	}()
+
+	// handle websocket messages
 	for {
 		_, msg, err := wsConn.ReadMessage()
 		if err != nil {
@@ -111,7 +155,7 @@ func (app *App) websocketController(c *gin.Context) {
 		case InitAction:
 			log.Printf("INIT CONNECTION %+v", act)
 
-			tables, err := AvailableTables(app.Clickhouse)
+			tables, err := FetchClickhouseTables(app.Clickhouse)
 			if err != nil {
 				log.Printf("error -> %s", err.Error())
 				break
@@ -128,8 +172,6 @@ func (app *App) websocketController(c *gin.Context) {
 
 		case RunQueryAction:
 			log.Printf("RUN QUERY %+v", act)
-
-			resultsCh := make(chan struct{})
 
 			// close current runners
 			for _, rnr := range client.QueryRunners {
@@ -219,7 +261,7 @@ func (cs *ClientSession) Close() {
 	}
 }
 
-func (cs *ClientSession) StartQueryRunner(app *App, results chan struct{}, ctrl chan int, query ClientQuery) error {
+func (cs *ClientSession) StartQueryRunner(app *App, resCh QueryResultsCh, ctrl chan int, query ClientQuery) error {
 	log.Printf("StartQuery runned  %+v", query)
 
 	go func() {
@@ -231,7 +273,16 @@ func (cs *ClientSession) StartQueryRunner(app *App, results chan struct{}, ctrl 
 					return
 				}
 			default:
-				log.Printf("StartQuery FETCH  %+v", query)
+				log.Printf("StartQuery STARTING OF FETCHING  %+v", query)
+
+				results, err := FetchClickhouse(app.Clickhouse, query)
+				if err != nil {
+					log.Printf("Error while fethcing query -> %+v", query)
+					return
+				}
+
+				resCh <- results
+
 				time.Sleep((time.Duration)(query.FetchInterval) * time.Second)
 			}
 		}
@@ -241,7 +292,7 @@ func (cs *ClientSession) StartQueryRunner(app *App, results chan struct{}, ctrl 
 }
 
 func (q *ClientQuery) IsValid() (result bool) {
-	if q.FetchInterval > 0 {
+	if q.FetchInterval > 0 && len(q.Table) > 0 {
 		return true
 	} else {
 		return false
