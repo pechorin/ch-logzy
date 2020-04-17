@@ -35,7 +35,9 @@ function StartWebSocket() {
 
         soc.send(JSON.stringify({
           action: RUN_QUERY_ACTION,
-          payload: { query: '' }
+          payload: { queries: [
+            { query: "", fetch_interval: 30 }
+          ] }
         }))
       }
 

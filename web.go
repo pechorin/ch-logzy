@@ -68,20 +68,10 @@ func (app *App) websocketController(c *gin.Context) {
 	}
 	defer client.Close()
 
-	// resultsCh := make(chan struct{})
-
-	// start client fetching process immediatly
-	// if err := client.Start(app, resultsCh); err != nil {
-	// 	app.renderError(c, err)
-	// 	return
-	// }
-
-	// TODO: errors here should panic and kill connection
 	for {
 		_, msg, err := wsConn.ReadMessage()
-
 		if err != nil {
-			log.Printf("error -> %s", err.Error())
+			log.Printf("WS LOOP ABORTED -> %s", err.Error())
 			break
 		}
 
@@ -112,6 +102,27 @@ func (app *App) websocketController(c *gin.Context) {
 
 		case RunQueryAction:
 			log.Printf("RUN QUERY %+v", act)
+
+			resultsCh := make(chan struct{})
+
+			// close current runners
+			for _, rnr := range client.QueryRunners {
+				close(*rnr)
+			}
+
+			// create new
+			ctrlCh := make(chan int)
+			runners := make([]*chan int, 0)
+			runners = append(runners, &ctrlCh)
+
+			// assign to session
+			client.QueryRunners = runners
+
+			// start new query runners
+			if err := client.StartQueryRunner(app, resultsCh, ctrlCh); err != nil {
+				log.Printf("error -> %s", err.Error())
+				break
+			}
 
 		default:
 			log.Printf("Unknown SocketAction -> %+v", act)

@@ -21,9 +21,6 @@ var (
 
 	// Websocket engine
 	WS = websocket.Upgrader{}
-
-	// Dev HMR Port
-	DevHMRPort = 54725
 )
 
 // App represents the application with configuration state
@@ -46,12 +43,16 @@ type App struct {
 // this struct hold all connected information, like current query, interval
 // last ping time, configs etc.
 type ClientSession struct {
-	Id            int64
-	Query         ClientQuery
+	Id int64
+
+	Query        ClientQuery
+	QueryRunners []*chan int
+
 	Active        bool
 	FetchInterval int16
 
 	CreatedAt       time.Time
+	ClosedAt        time.Time
 	LastKeepaliveAt time.Time
 }
 
@@ -63,22 +64,6 @@ func (app *App) Log(message string) {
 	if app.Debug {
 		fmt.Println(message)
 	}
-}
-
-func (app *App) CreateClientSession() (cl *ClientSession, err error) {
-	cl = new(ClientSession)
-
-	// increase global id
-	app.ClientsIdSerialMux.Lock()
-	app.ClientsIdSerial += 1
-	cl.Id = app.ClientsIdSerial
-	app.ClientsIdSerialMux.Unlock()
-
-	// other defaults
-	cl.Active = false
-	cl.CreatedAt = time.Now()
-
-	return cl, err
 }
 
 // Create new application instance
@@ -112,39 +97,54 @@ func New() *App {
 	return app
 }
 
-// TODO: empty request backpressure detection required!
-//       1) if N empty loops reached then sleep for
-//          N * (iterations * ratio)
-//   or  2) track empty request if count, and if more then N
-//          then skip next X ticks
-func (cs *ClientSession) Start(app *App, resultsCh chan struct{}) (err error) {
+func (app *App) CreateClientSession() (cs *ClientSession, err error) {
+	cs = new(ClientSession)
+
+	// increase global id
+	app.ClientsIdSerialMux.Lock()
+	app.ClientsIdSerial += 1
+	cs.Id = app.ClientsIdSerial
+	app.ClientsIdSerialMux.Unlock()
+
+	// set defaults
+	cs.Active = false
+	cs.CreatedAt = time.Now()
+	cs.QueryRunners = make([]*chan int, 0)
+
+	// append to client pool
 	app.Clients = append(app.Clients, cs)
 
-	log.Printf("client created -> %+v", cs)
+	return cs, err
+}
 
-	timer := time.Tick((time.Duration)(FetchIntervals[0]) * time.Second)
+func (cs *ClientSession) Close() {
+	cs.Active = false
+	cs.ClosedAt = time.Now()
+
+	for _, r := range cs.QueryRunners {
+		close(*r)
+	}
+}
+
+func (cs *ClientSession) StartQueryRunner(app *App, results chan struct{}, ctrl chan int) error {
+	log.Printf("StartQuery runned  %+v", cs)
 
 	go func() {
 		for {
 			select {
-			case <-timer:
-				results, err := cs.RunQuery(app)
-				if err != nil {
-					log.Printf("Error while RunQuery: %s", err.Error())
-					continue
+			case _, ok := <-ctrl:
+				if !ok {
+					log.Printf("StartQuery closed -> %+v", cs)
+					return
 				}
-
-				log.Printf("Fetched results count: %d", len(results))
+			default:
+				log.Printf("StartQuery FETCH  %+v", cs)
+				time.Sleep((time.Duration)(FetchIntervals[0]) * time.Second)
 			}
 		}
 	}()
 
 	return nil
-}
-
-func (cs *ClientSession) RunQuery(app *App) (results []int64, err error) {
-	log.Printf("run ClientSession %d", cs.Id)
-	return results, nil
 }
 
 // move to monitor log ?
@@ -161,9 +161,6 @@ func (app *App) ClientSessionsMonitor() error {
 	}()
 
 	return nil
-}
-
-func (cs *ClientSession) Close() {
 }
 
 func main() {
