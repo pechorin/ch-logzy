@@ -39,27 +39,6 @@ type App struct {
 	ClientsIdSerialMux *sync.Mutex
 }
 
-// ClientStream represents connected with websocket client
-// this struct hold all connected information, like current query, interval
-// last ping time, configs etc.
-type ClientSession struct {
-	Id int64
-
-	Query        ClientQuery
-	QueryRunners []*chan int
-
-	Active        bool
-	FetchInterval int16
-
-	CreatedAt       time.Time
-	ClosedAt        time.Time
-	LastKeepaliveAt time.Time
-}
-
-type ClientQuery struct {
-	RawQuery string
-}
-
 func (app *App) Log(message string) {
 	if app.Debug {
 		fmt.Println(message)
@@ -97,6 +76,22 @@ func New() *App {
 	return app
 }
 
+// move to monitor log ?
+func (app *App) ClientSessionsMonitor() error {
+	timer := time.Tick(30 * time.Second)
+
+	go func() {
+		for {
+			select {
+			case <-timer:
+				log.Printf("MONITOR - sessions: %d, fetching: %d", len(app.Clients), 0)
+			}
+		}
+	}()
+
+	return nil
+}
+
 func (app *App) CreateClientSession() (cs *ClientSession, err error) {
 	cs = new(ClientSession)
 
@@ -115,52 +110,6 @@ func (app *App) CreateClientSession() (cs *ClientSession, err error) {
 	app.Clients = append(app.Clients, cs)
 
 	return cs, err
-}
-
-func (cs *ClientSession) Close() {
-	cs.Active = false
-	cs.ClosedAt = time.Now()
-
-	for _, r := range cs.QueryRunners {
-		close(*r)
-	}
-}
-
-func (cs *ClientSession) StartQueryRunner(app *App, results chan struct{}, ctrl chan int) error {
-	log.Printf("StartQuery runned  %+v", cs)
-
-	go func() {
-		for {
-			select {
-			case _, ok := <-ctrl:
-				if !ok {
-					log.Printf("StartQuery closed -> %+v", cs)
-					return
-				}
-			default:
-				log.Printf("StartQuery FETCH  %+v", cs)
-				time.Sleep((time.Duration)(FetchIntervals[0]) * time.Second)
-			}
-		}
-	}()
-
-	return nil
-}
-
-// move to monitor log ?
-func (app *App) ClientSessionsMonitor() error {
-	timer := time.Tick(30 * time.Second)
-
-	go func() {
-		for {
-			select {
-			case <-timer:
-				log.Printf("MONITOR - sessions: %d, fetching: %d", len(app.Clients), 0)
-			}
-		}
-	}()
-
-	return nil
 }
 
 func main() {

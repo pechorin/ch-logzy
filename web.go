@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"log"
 	"text/template"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	mapstruct "github.com/mitchellh/mapstructure"
 )
 
 var (
@@ -30,6 +32,30 @@ type SocketAction struct {
 type SocketActionResponse struct {
 	Action  string                 `json:"action"`
 	Payload map[string]interface{} `json:"payload"`
+}
+
+// ClientStream represents connected with websocket client
+// this struct hold all connected information, like current query, interval
+// last ping time, configs etc.
+type ClientSession struct {
+	Id           int64
+	QueryRunners []*chan int
+
+	Active        bool
+	FetchInterval int
+
+	CreatedAt       time.Time
+	ClosedAt        time.Time
+	LastKeepaliveAt time.Time
+}
+
+type ClientQuery struct {
+	Query         string
+	FetchInterval int16 `mapstructure:"fetch_interval"`
+}
+
+type ClientQueries struct {
+	Queries []ClientQuery
 }
 
 func (app *App) renderError(c *gin.Context, err error) {
@@ -118,10 +144,25 @@ func (app *App) websocketController(c *gin.Context) {
 			// assign to session
 			client.QueryRunners = runners
 
-			// start new query runners
-			if err := client.StartQueryRunner(app, resultsCh, ctrlCh); err != nil {
-				log.Printf("error -> %s", err.Error())
+			queries := new(ClientQueries)
+			if err := mapstruct.Decode(act.Payload, queries); err != nil {
+				log.Printf("decode error -> %s", err.Error())
 				break
+			}
+
+			log.Printf("----- decoded queires -> %+v", queries)
+
+			for _, query := range queries.Queries {
+				if valid := query.IsValid(); valid == false {
+					log.Printf("invalid query -> %s :: %+v", err.Error(), query)
+					break
+				}
+
+				// start query runner
+				if err := client.StartQueryRunner(app, resultsCh, ctrlCh, query); err != nil {
+					log.Printf("error -> %s", err.Error())
+					break
+				}
 			}
 
 		default:
@@ -167,4 +208,42 @@ func (app *App) faviconController(c *gin.Context) {
 
 	c.Writer.WriteHeader(200)
 	c.Writer.WriteString(html)
+}
+
+func (cs *ClientSession) Close() {
+	cs.Active = false
+	cs.ClosedAt = time.Now()
+
+	for _, r := range cs.QueryRunners {
+		close(*r)
+	}
+}
+
+func (cs *ClientSession) StartQueryRunner(app *App, results chan struct{}, ctrl chan int, query ClientQuery) error {
+	log.Printf("StartQuery runned  %+v", query)
+
+	go func() {
+		for {
+			select {
+			case _, ok := <-ctrl:
+				if !ok {
+					log.Printf("StartQuery closed -> %+v", query)
+					return
+				}
+			default:
+				log.Printf("StartQuery FETCH  %+v", query)
+				time.Sleep((time.Duration)(query.FetchInterval) * time.Second)
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (q *ClientQuery) IsValid() (result bool) {
+	if q.FetchInterval > 0 {
+		return true
+	} else {
+		return false
+	}
 }
