@@ -7,15 +7,16 @@ new Vue({
   render: h => h(App),
 }).$mount('#app')
 
-var INIT_ACTION         = 'init'
-var RUN_QUERY_ACTION    = 'run_query'
-var QUERY_RESULT_ACTION = 'query_result'
-var WEBSOCKET_URL       = 'ws://localhost:9091/ws'
+var INIT_ACTION           = 'init'
+var RUN_QUERY_ACTION      = 'run_query'
+var QUERY_RESULT_RESPONSE = 'query_result'
+var WEBSOCKET_URL         = 'ws://localhost:9091/ws'
 
 function StartWebSocket() {
   var soc = new WebSocket(WEBSOCKET_URL)
 
   soc.onopen = function(ev) {
+    console.log('open connection WS', ev)
     soc.send(JSON.stringify({
       action: INIT_ACTION,
       payload: { login: '', password: '', hostString: '' }
@@ -33,7 +34,6 @@ function StartWebSocket() {
   soc.onmessage = function(ev) {
     var msg  = JSON.parse(ev.data)
     var data = msg.payload
-    console.log('incoming WS msg ->', msg)
 
     if (msg.action == INIT_ACTION) {
       console.log("available tables -> ", data.tables)
@@ -51,6 +51,8 @@ function StartWebSocket() {
         }))
       }
 
+    } else if (msg.action == QUERY_RESULT_RESPONSE) {
+      console.log('query result -> ', msg)
     } else {
       console.error('unkwnown WS messages ->', msg)
     }
@@ -59,6 +61,4 @@ function StartWebSocket() {
 
 document.addEventListener("DOMContentLoaded", function() {
   StartWebSocket()
-
-  console.log('app initied', app)
 })

@@ -27,6 +27,7 @@ var (
 type App struct {
 	Port          string
 	Debug         bool
+	Faker         bool
 	AssetsDir     string
 	AssetsBox     *packr.Box
 	IndexTemplate *template.Template
@@ -69,6 +70,8 @@ func New() *App {
 
 	flag.StringVar(&app.ClickhouseUri, "clickhouse_uri", "http://localhost:8123", "Clickhouse uri with scheme")
 	flag.BoolVar(&app.Debug, "debug", true, "debug output")
+	flag.BoolVar(&app.Faker, "faker", false, "start ch-logzy for producting fake data to table 'ch_logzy_test_data'")
+
 	flag.Parse()
 
 	app.Log(fmt.Sprintf("initial config -> %+v", app))
@@ -116,18 +119,24 @@ func main() {
 	app := New()
 	defer app.Clickhouse.Close()
 
-	go app.ClientSessionsMonitor()
+	if app.Faker {
+		fmt.Printf("Starting ch-logzy fake data generator %+v", app)
+	} else {
+		fmt.Printf("Starting ch-logzy %+v", app)
 
-	router := gin.Default()
+		// go app.ClientSessionsMonitor()
 
-	router.Static("/js", app.AssetsDir+"/js")
-	router.Static("/css", app.AssetsDir+"/css")
-	router.Static("/img", app.AssetsDir+"/img")
-	router.Static("/fonts", app.AssetsDir+"/fonts")
+		router := gin.Default()
 
-	router.GET("/", app.indexController)
-	router.GET("/about", app.indexController)
-	router.GET("/favicon.ico", app.faviconController)
-	router.GET("/ws", app.websocketController)
-	router.Run(app.Port)
+		router.Static("/js", app.AssetsDir+"/js")
+		router.Static("/css", app.AssetsDir+"/css")
+		router.Static("/img", app.AssetsDir+"/img")
+		router.Static("/fonts", app.AssetsDir+"/fonts")
+
+		router.GET("/", app.indexController)
+		router.GET("/about", app.indexController)
+		router.GET("/favicon.ico", app.faviconController)
+		router.GET("/ws", app.websocketController)
+		router.Run(app.Port)
+	}
 }
