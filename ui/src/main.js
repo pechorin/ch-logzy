@@ -1,4 +1,11 @@
-import Vue from 'vue';
+import Vue from 'vue'
+import App from './App.vue'
+
+Vue.config.productionTip = false
+
+new Vue({
+  render: h => h(App),
+}).$mount('#app')
 
 var INIT_ACTION         = 'init'
 var RUN_QUERY_ACTION    = 'run_query'
@@ -51,17 +58,7 @@ function StartWebSocket() {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  var app = new Vue({
-    el: '#app',
-    template: `
-      <div>
-        Hello world !
-      </div>
-    `,
-  })
-
   StartWebSocket()
 
   console.log('app initied', app)
 })
-
