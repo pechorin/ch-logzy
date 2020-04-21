@@ -1,10 +1,23 @@
-import Vue from 'vue'
-import App from './App.vue'
+import Vue from 'vue';
+import Vuetify, {
+  VBtn
+} from 'vuetify/lib';
+import Application from './Application.vue';
+
+Vue.use(Vuetify, {
+  components: {
+    VBtn
+  },
+  directives: {},
+});
 
 Vue.config.productionTip = false
 
+var vuetify = new Vuetify({})
+
 new Vue({
-  render: h => h(App),
+  vuetify,
+  render: h => h(Application)
 }).$mount('#app')
 
 var INIT_ACTION           = 'init'
@@ -62,3 +75,6 @@ function StartWebSocket() {
 document.addEventListener("DOMContentLoaded", function() {
   StartWebSocket()
 })
+
+console.log('inited')
+

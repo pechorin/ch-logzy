@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
-	"text/template"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -71,23 +70,6 @@ type QueryResultsCh chan QueryResults
 
 func (app *App) renderError(c *gin.Context, err error) {
 	c.String(500, err.Error())
-}
-
-func (app *App) RenderIndexTemplate() *template.Template {
-	html, err := app.AssetsBox.FindString("index.html")
-
-	if err != nil {
-		panic("index.html template not found")
-	}
-
-	// move to application?
-	template, err := template.New("IndexTemplate").Parse(html)
-
-	if err != nil {
-		panic("can't render index template")
-	}
-
-	return template
 }
 
 func (app *App) websocketController(c *gin.Context) {

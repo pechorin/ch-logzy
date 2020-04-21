@@ -1,7 +1,10 @@
+// TODO:
+// - think about logging (info and errors)
 package main
 
 import (
 	_ "database/sql"
+	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"log"
@@ -48,8 +51,16 @@ func (app *App) Log(message string) {
 
 // Create new application instance
 func New() *App {
+	// new app instance
 	app := new(App)
 
+	// set flags from args
+	flag.StringVar(&app.ClickhouseUri, "clickhouse_uri", "http://localhost:8123", "Clickhouse uri with scheme")
+	flag.BoolVar(&app.Debug, "debug", true, "debug output")
+	flag.BoolVar(&app.Faker, "faker", false, "start ch-logzy for producting fake data to table 'ch_logzy_test_data'")
+	flag.Parse()
+
+	// init and ping clickhouse
 	clk, err := NewClickhouse()
 
 	if err != nil {
@@ -62,19 +73,23 @@ func New() *App {
 
 	app.Clickhouse = clk
 	app.Port = ":9091"
-	app.AssetsDir = "./ui/dist"
+
+	// other initializations
+	if app.Debug == true {
+		app.AssetsDir = "./ui/dist-dev"
+	} else {
+		app.AssetsDir = "./ui/dist"
+	}
+
 	app.AssetsBox = packr.New("Assets", app.AssetsDir)
-	app.IndexTemplate = app.RenderIndexTemplate()
 	app.ClientsIdSerialMux = new(sync.Mutex)
 	app.Clients = make([]*ClientSession, 0)
 
-	flag.StringVar(&app.ClickhouseUri, "clickhouse_uri", "http://localhost:8123", "Clickhouse uri with scheme")
-	flag.BoolVar(&app.Debug, "debug", true, "debug output")
-	flag.BoolVar(&app.Faker, "faker", false, "start ch-logzy for producting fake data to table 'ch_logzy_test_data'")
-
-	flag.Parse()
-
-	app.Log(fmt.Sprintf("initial config -> %+v", app))
+	indexTpl, err := renderIndexTemplate(app.AssetsBox)
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	app.IndexTemplate = indexTpl
 
 	return app
 }
@@ -121,6 +136,7 @@ func main() {
 
 	if app.Faker {
 		fmt.Printf("Starting ch-logzy fake data generator %+v", app)
+
 	} else {
 		fmt.Printf("Starting ch-logzy %+v", app)
 
@@ -139,4 +155,21 @@ func main() {
 		router.GET("/ws", app.websocketController)
 		router.Run(app.Port)
 	}
+}
+
+func renderIndexTemplate(box *packr.Box) (*template.Template, error) {
+	html, err := box.FindString("index.html")
+
+	if err != nil {
+		return nil, errors.New("index.html template not found")
+	}
+
+	// move to application?
+	template, err := template.New("IndexTemplate").Parse(html)
+
+	if err != nil {
+		return nil, errors.New("can't render index template")
+	}
+
+	return template, nil
 }

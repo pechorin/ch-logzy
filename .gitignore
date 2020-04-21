@@ -3,7 +3,8 @@ node_modules
 tags
 .DS_Store
 node_modules
-/dist
+ui/dist-dev
+ch-logzy
 
 # local env files
 .env.local
