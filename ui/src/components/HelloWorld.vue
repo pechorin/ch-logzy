@@ -1,6 +1,8 @@
 <template>
-  <v-container>
-    Hello world :)
+  <v-container fluid>
+    <div class="caption">
+      Для начала нужно создать подключение, чтобы увидеть первые события
+    </div>
   </v-container>
 </template>
 

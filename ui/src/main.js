@@ -1,17 +1,10 @@
 import Vue from 'vue';
-import Vuetify, {
-  VBtn
-} from 'vuetify/lib';
+import Vuetify from 'vuetify/lib';
 import Application from './Application.vue';
 
-Vue.use(Vuetify, {
-  components: {
-    VBtn
-  },
-  directives: {},
-});
-
+Vue.use(Vuetify, {});
 Vue.config.productionTip = false
+Vue.config.devtools = true
 
 var vuetify = new Vuetify({})
 
