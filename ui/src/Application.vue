@@ -17,8 +17,8 @@
       app
       clipped
       color="grey lighten-4"
+      class="MainMenu"
     >
-
       <v-list-item>
         <v-list-item-content>
           <v-list-item-title class="subtitle-1">
@@ -32,7 +32,7 @@
 
       <v-divider class="StreamItemDivider"></v-divider>
 
-      <v-list-item link>
+      <v-list-item link class="ListItem">
         <v-list-item-content>
           <v-list-item-title class="subtitle-1 StreamItemTitle">
             ch_logs_test_data
@@ -45,7 +45,7 @@
 
       <v-divider class="StreamItemDivider"></v-divider>
 
-      <v-list-item link>
+      <v-list-item link class="ListItem">
         <v-list-item-content>
           <v-list-item-title class="subtitle-1 StreamItemTitle">
             dredd_development
@@ -58,7 +58,7 @@
 
       <v-divider class="StreamItemDivider"></v-divider>
 
-      <v-list-item link>
+      <v-list-item link class="AddButton">
         <v-list-item-content>
           <v-list-item-title class="subtitle-2">
             <v-btn class="mx-1" fab x-small depressed color="#f5853a">
@@ -81,7 +81,7 @@
 
 <style>
 .v-navigation-drawer__border {
-  display: none;
+  background-color: hsl(306, 11%, 73%);
 }
 
 .AppBar {
@@ -93,14 +93,22 @@
   color: #FFFFFF;
 }
 
-.StreamItemTitle {
+.MainMenu .ListItem {
+  background-color: #f7fcff;
+}
 
+.MainMenu .AddButton {
+  background-color: white;
+}
+
+.MainMeny .StreamItemTitle {
+  color: #7a0786;
 }
 .StreamItemText {
 
 }
 
-.StreamItemDivider {
+.MainMenu .StreamItemDivider {
   border-color: #e8e8e8 !important;
 }
 </style>
