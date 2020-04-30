@@ -1,14 +1,14 @@
 <template>
   <v-container fluid>
     <div class="caption">
-      Для начала нужно создать подключение, чтобы увидеть первые события
+      Стрим
     </div>
   </v-container>
 </template>
 
 <script>
   export default {
-    name: 'HelloWorld',
+    name: 'StreamPage',
     data: () => ({}),
   }
 </script>

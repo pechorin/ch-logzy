@@ -1,15 +1,35 @@
 import Vue from 'vue';
 import Vuetify from 'vuetify/lib';
-import Application from './Application.vue';
+import VueRouter from 'vue-router';
 
-Vue.use(Vuetify, {});
+import Application from './Application.vue';
+import IndexPage from './components/IndexPage';
+import NewStreamPage from './components/NewStreamPage';
+import StreamPage from './components/StreamPage';
+import ErrorPage from './components/ErrorPage';
+
+Vue.use(Vuetify)
+Vue.use(VueRouter)
 Vue.config.productionTip = false
 Vue.config.devtools = true
 
 var vuetify = new Vuetify({})
+var routes  = [
+  { path: '/', component: IndexPage, name: 'index_page' },
+  { path: '/new', component: NewStreamPage, name: 'new_stream_page' },
+  { path: '/streams/:id', component: StreamPage, name: 'stream_page' },
+  { path: '/404', component: ErrorPage, name: 'error_page', alias: '*' },
+]
+
+var router = new VueRouter({routes})
+
+router.beforeEach((to, from, next) => {
+  console.log("router -> ", to, from, next)
+})
 
 new Vue({
   vuetify,
+  router,
   render: h => h(Application)
 }).$mount('#app')
 
@@ -17,6 +37,7 @@ var INIT_ACTION           = 'init'
 var RUN_QUERY_ACTION      = 'run_query'
 var QUERY_RESULT_RESPONSE = 'query_result'
 var WEBSOCKET_URL         = 'ws://localhost:9091/ws'
+
 
 function StartWebSocket() {
   var soc = new WebSocket(WEBSOCKET_URL)
